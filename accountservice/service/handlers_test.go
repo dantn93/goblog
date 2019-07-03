@@ -8,12 +8,23 @@ import (
 
 	"github.com/goblog/accountservice/dbclient"
 	"github.com/goblog/accountservice/model"
+	"github.com/h2non/gock"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
-func TestGetAccount(t *testing.T) {
-	mockRepo := &dbclient.MockBoltClient{}
+func init() {
+	gock.InterceptClient(client)
+}
 
+func TestGetAccount(t *testing.T) {
+	defer gock.Off()
+	gock.New("http://quotes-service:8080").
+		Get("/api/quote").
+		MatchParam("strength", "4").
+		Reply(200).
+		BodyString(`{"quote":"May the source be with you. Always.","ipAddress":"10.0.0.5:8080","language":"en"}`)
+
+	mockRepo := &dbclient.MockBoltClient{}
 	mockRepo.On("QueryAccount", "123").Return(model.Account{Id: "123", Name: "Person_123"}, nil)
 	mockRepo.On("QueryAccount", "456").Return(model.Account{}, fmt.Errorf("Some error"))
 	DBClient = mockRepo
@@ -32,6 +43,7 @@ func TestGetAccount(t *testing.T) {
 				json.Unmarshal(resp.Body.Bytes(), &account)
 				So(account.Id, ShouldEqual, "123")
 				So(account.Name, ShouldEqual, "Person_123")
+				So(account.Quote.Text, ShouldEqual, "May the source be with you. Always.")
 			})
 		})
 	})
